@@ -415,16 +415,9 @@ union type_info_entry
 };
 
 template <typename Source, typename Destination>
-void * erased_static_cast(void * source) noexcept
-{
+constexpr auto erased_static_cast_v = [](void * source) noexcept -> void * {
     return static_cast<Destination *>(static_cast<Source *>(source));
-}
-
-template <typename Source, typename Destination>
-constexpr auto make_erased_static_cast() noexcept
-{
-    return &erased_static_cast<Source, Destination>;
-}
+};
 
 template <typename Type>
 constexpr auto type_id() noexcept -> const void *;
@@ -439,9 +432,7 @@ struct type_information
     static constexpr type_info_entry info[] = {
         sizeof...(Bases),    // Number of source classes.
         type_id<Bases>()..., // Source classes type information.
-        make_erased_static_cast<Type,
-                                Bases>()..., // Casts from derived to
-                                             // base.
+        &erased_static_cast_v<Type, Bases>..., // Casts from derived to base.
     };
 };
 
