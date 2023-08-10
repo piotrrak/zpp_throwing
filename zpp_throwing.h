@@ -16,8 +16,10 @@
 namespace zpp::inline me_tinkers::detail
 {
 
-
-
+template <typename Type>
+concept StatelessAlloc = std::is_void_v<Type> or
+    std::same_as<typename std::allocator_traits<Type>::is_always_equal,
+                 std::true_type>;
 }
 
 namespace zpp::inline me_tinkers
@@ -860,11 +862,11 @@ struct exit_condition
  * to execute a function object and then to catch exceptions thrown from
  * it.
  */
-template <typename Type, typename Allocator = void>
+template <typename Type, detail::StatelessAlloc Allocator = void>
 class [[nodiscard]] throwing
 {
 public:
-    template <typename, typename>
+    template <typename, detail::StatelessAlloc>
     friend class throwing;
 
     struct zpp_throwing_tag
@@ -878,7 +880,7 @@ public:
     class basic_promise_type
     {
     public:
-        template <typename, typename>
+        template <typename, detail::StatelessAlloc>
         friend class throwing;
 
         struct suspend_destroy
