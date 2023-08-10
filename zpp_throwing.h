@@ -13,7 +13,14 @@
 #include <tuple>
 #include <type_traits>
 
-namespace zpp
+namespace zpp::inline me_tinkers::detail
+{
+
+
+
+}
+
+namespace zpp:: inline me_tinkers
 {
 /**
  * User defined error domain.
