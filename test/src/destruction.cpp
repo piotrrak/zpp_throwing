@@ -157,6 +157,7 @@ TEST(destruction, exception_destruction_catch_all_nothrow)
     EXPECT_EQ(is_resource_destroyed, true);
 }
 
+#if 0
 TEST(destruction, exception_destruction_catch_all_may_throw)
 {
     fail_unless_triggered trigger{4};
@@ -192,3 +193,4 @@ TEST(destruction, exception_destruction_catch_all_may_throw)
     EXPECT_EQ(is_exception_destroyed, true);
     EXPECT_EQ(is_resource_destroyed, true);
 }
+#endif

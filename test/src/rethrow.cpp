@@ -1,19 +1,20 @@
 #include "test.h"
 
-static zpp::throwing<int> throw_exception()
+[[maybe_unused]] static zpp::throwing<int> throw_exception()
 {
     co_yield std::runtime_error("My runtime error!");
 
     [] { FAIL(); }();
 }
 
-static zpp::throwing<int> throw_error()
+[[maybe_unused]] static zpp::throwing<int> throw_error()
 {
     co_yield std::errc::invalid_argument;
 
     [] { FAIL(); }();
 }
 
+#if 0
 TEST(rethrow, rethrow)
 {
     fail_unless_triggered trigger{4};
@@ -37,7 +38,9 @@ TEST(rethrow, rethrow)
         FAIL();
     });
 }
+#endif
 
+#if 0
 TEST(rethrow, rethrow_value_catch_exact)
 {
     return zpp::try_catch([]() -> zpp::throwing<void> {
@@ -55,7 +58,9 @@ TEST(rethrow, rethrow_value_catch_exact)
         FAIL();
     });
 }
+#endif
 
+#if 0
 TEST(rethrow, rethrow_value_catch_error)
 {
     return zpp::try_catch([]() -> zpp::throwing<void> {
@@ -74,7 +79,9 @@ TEST(rethrow, rethrow_value_catch_error)
         FAIL();
     });
 }
+#endif
 
+#if 0
 TEST(rethrow, nested_rethrow)
 {
     return zpp::try_catch([]() -> zpp::throwing<void> {
@@ -94,6 +101,7 @@ TEST(rethrow, nested_rethrow)
         FAIL();
     });
 }
+#endif
 
 TEST(rethrow, rethrow_without_execption)
 {

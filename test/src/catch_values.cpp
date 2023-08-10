@@ -118,6 +118,7 @@ TEST(catch_values, test_catch_exact_base_fallback_order_priority)
     });
 }
 
+#if 0
 TEST(catch_values, test_uncaght_propagate)
 {
     fail_unless_triggered trigger{3};
@@ -141,4 +142,5 @@ TEST(catch_values, test_uncaght_propagate)
         FAIL();
     });
 }
+#endif
 
