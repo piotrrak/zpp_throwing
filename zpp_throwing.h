@@ -254,6 +254,12 @@ using std::suspend_never;
 
 using std::remove_cvref_t;
 
+#if defined(__cpp_lib_unreachable) && __cpp_lib_unreachable >= 202202L
+using std::unreachable;
+#else
+[[noreturn]] void unreachable() { __builtin_unreachable(); }
+#endif
+
 /**
  * Determine the throwing state via error domain placeholders.
  * @{
@@ -879,7 +885,7 @@ public:
         {
             constexpr bool await_ready() noexcept { return false; }
             void await_suspend(auto handle) noexcept { handle.destroy(); }
-            [[noreturn]] void await_resume() noexcept { while (true); }
+            [[noreturn]] void await_resume() noexcept { unreachable(); }
         };
 
         auto get_return_object()
