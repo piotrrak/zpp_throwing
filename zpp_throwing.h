@@ -257,7 +257,7 @@ using std::remove_cvref_t;
 #if defined(__cpp_lib_unreachable) && __cpp_lib_unreachable >= 202202L
 using std::unreachable;
 #else
-[[noreturn]] void unreachable() { __builtin_unreachable(); }
+[[noreturn]] inline void unreachable() { __builtin_unreachable(); }
 #endif
 
 /**
