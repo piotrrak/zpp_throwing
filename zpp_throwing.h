@@ -249,7 +249,7 @@ private:
 
 template <typename... Arguments>
 using coroutine_handle = std::coroutine_handle<Arguments...>;
-using std::suspend_alway;
+using std::suspend_always;
 using std::suspend_never;
 
 using std::remove_cvref_t;
