@@ -469,7 +469,7 @@ constexpr auto type_id(define_exception_bases<>) noexcept
 template <typename Type>
 constexpr auto type_id() noexcept -> const void *
 {
-    using type = std::remove_cv_t<std::remove_reference_t<Type>>;
+    using type = remove_cvref_t<Type>;
     return detail::type_id<type>(define_exception_t<type>{});
 }
 
@@ -516,8 +516,7 @@ inline void * dyn_cast(const void * base,
 
 template <typename Type>
 struct catch_type
-    : catch_type<decltype(&std::remove_cv_t<
-                          std::remove_reference_t<Type>>::operator())>
+    : catch_type<decltype(&remove_cvref_t<Type>::operator())>
 {
 };
 
@@ -599,8 +598,7 @@ using catch_type_t = typename catch_type<Type>::type;
 template <typename Type>
 struct catch_value_type
 {
-    using type =
-        std::remove_cv_t<std::remove_reference_t<catch_type_t<Type>>>;
+    using type = remove_cvref_t<catch_type_t<Type>>;
 };
 
 template <typename Type>
@@ -764,7 +762,7 @@ struct exit_condition
     template <typename Exception>
     auto exit_with_exception(Exception && exception) noexcept
     {
-        using type = std::remove_cv_t<std::remove_reference_t<Exception>>;
+        using type = remove_cvref_t<Exception>;
 
         // Define the exception object that will be type erased.
         struct exception_holder : public exception_object
@@ -924,8 +922,7 @@ public:
         template <typename Value>
         void throw_it(Value && value) requires requires
         {
-            define_exception<
-                std::remove_cv_t<std::remove_reference_t<Value>>>();
+            define_exception<remove_cvref_t<Value>>();
         }
         {
             m_return_object->m_condition.exit_with_exception(
@@ -1103,7 +1100,7 @@ public:
         }) ||
         (std::is_void_v<Type> &&
          std::is_same_v<
-             std::remove_cv_t<std::remove_reference_t<decltype(value)>>,
+             remove_cvref_t<decltype(value)>,
              void_t>) :
         m_condition(std::forward<decltype(value)>(value))
     {
@@ -1118,8 +1115,7 @@ public:
     }
     {
         if constexpr (requires {
-                          define_exception<std::remove_cv_t<
-                              std::remove_reference_t<decltype(value)>>>();
+                          define_exception<remove_cvref_t<decltype(value)>>();
                       }) {
             m_condition.exit_with_exception(
                 std::forward<decltype(value)>(value));
