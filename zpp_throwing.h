@@ -606,6 +606,26 @@ struct catch_value_type
 template <typename Type>
 using catch_value_type_t = typename catch_value_type<Type>::type;
 
+template <typename Type>
+struct pointer_if_ref_impl : std::type_identity<Type>
+{
+};
+
+template <typename Type> requires std::is_reference_v<Type>
+struct pointer_if_ref_impl<Type>
+  : std::add_pointer<std::remove_reference_t<Type>>
+{
+};
+
+template <>
+struct pointer_if_ref_impl<void> : std::type_identity<std::nullptr_t>
+{
+};
+
+template <typename Type>
+using add_pointer_if_reference_t = pointer_if_ref_impl<Type>::type;
+
+
 } // namespace detail
 
 namespace zpp::inline me_tinkers
@@ -618,13 +638,7 @@ struct exit_condition
 {
     using exception_type = exception_object *;
     using error_type = class error;
-    using value_type = std::conditional_t<
-        std::is_void_v<Type>,
-        std::nullptr_t,
-        std::conditional_t<
-            std::is_reference_v<Type>,
-            std::add_pointer_t<std::remove_reference_t<Type>>,
-            Type>>;
+    using value_type = detail::add_pointer_if_reference_t<Type>;
 
     constexpr exit_condition() noexcept :
         m_error_domain(std::addressof(err_domain<rethrow_error>))
