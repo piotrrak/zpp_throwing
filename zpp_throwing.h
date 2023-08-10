@@ -4,7 +4,7 @@
 #include <concepts>
 #include <coroutine>
 #include <cstring>
-#include <exceptions>
+#include <exception>
 #include <memory>
 #include <new>
 #include <stdexcept>
