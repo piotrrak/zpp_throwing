@@ -269,6 +269,9 @@ using std::unreachable;
 [[noreturn]] inline void unreachable() { __builtin_unreachable(); }
 #endif
 
+template <typename, detail::StatelessAlloc>
+class throwing;
+
 /**
  * Determine the throwing state via error domain placeholders.
  * @{
@@ -625,6 +628,103 @@ struct pointer_if_ref_impl<void> : std::type_identity<std::nullptr_t>
 template <typename Type>
 using add_pointer_if_reference_t = pointer_if_ref_impl<Type>::type;
 
+/**
+ * The promise type to be extended with return value / return void
+ * functionality.
+ */
+template <typename Type, detail::StatelessAlloc Allocator>
+class basic_promise_type
+{
+    using throwing_type = throwing<Type, Allocator>;
+
+public:
+    template <typename, detail::StatelessAlloc>
+    friend class zpp::throwing;
+
+    struct suspend_destroy
+    {
+        constexpr bool await_ready() noexcept { return false; }
+        void await_suspend(auto handle) noexcept { handle.destroy(); }
+        [[noreturn]] void await_resume() noexcept { unreachable(); }
+    };
+
+    template <typename PromiseType =
+                  typename std::coroutine_traits<throwing_type>::promise_type>
+    auto get_return_object()
+    {
+        return throwing_type{static_cast<PromiseType &>(*this)};
+    }
+
+    auto initial_suspend() noexcept
+    {
+        return suspend_never{};
+    }
+
+    auto final_suspend() noexcept
+    {
+        return suspend_never{};
+    }
+
+    void unhandled_exception()
+    {
+        std::terminate();
+    }
+
+    /**
+     * Throw and destroy calling coroutine.
+     */
+    template <typename Value>
+    auto yield_value(Value && value)
+    {
+        throw_it(std::forward<Value>(value));
+        return suspend_destroy{};
+    }
+
+    /**
+     * Throw an exception.
+     */
+    template <typename Value>
+    void throw_it(Value && value) requires requires
+    {
+        define_exception<remove_cvref_t<Value>>();
+    }
+    {
+        m_return_object->m_condition.exit_with_exception(
+            std::forward<Value>(value));
+    }
+
+    /**
+     * Rethrow from existing.
+     */
+    template <typename ExitCondition>
+    void throw_it(
+        std::tuple<const rethrow_t &, ExitCondition &> error_condition)
+    {
+        m_return_object->m_condition.exit_propagate(
+            std::get<1>(error_condition));
+    }
+
+    /**
+     * Rethrow the current set exception.
+     */
+    void throw_it(rethrow_t)
+    {
+        m_return_object->m_condition.exit_rethrow();
+    }
+
+    /**
+     * Throw an error.
+     */
+    void throw_it(const error & error)
+    {
+        m_return_object->m_condition.exit_with_error(error);
+    }
+
+protected:
+    ~basic_promise_type() = default;
+
+    throwing_type * m_return_object{};
+};
 
 } // namespace detail
 
@@ -879,6 +979,9 @@ struct exit_condition
 template <typename Type, detail::StatelessAlloc Allocator = void>
 class [[nodiscard]] throwing
 {
+    using basic_promise_type = detail::basic_promise_type<Type, Allocator>;
+
+    friend basic_promise_type;
 public:
     template <typename, detail::StatelessAlloc>
     friend class throwing;
@@ -887,98 +990,6 @@ public:
     {
     };
 
-    /**
-     * The promise type to be extended with return value / return void
-     * functionality.
-     */
-    class basic_promise_type
-    {
-    public:
-        template <typename, detail::StatelessAlloc>
-        friend class throwing;
-
-        struct suspend_destroy
-        {
-            constexpr bool await_ready() noexcept { return false; }
-            void await_suspend(auto handle) noexcept { handle.destroy(); }
-            [[noreturn]] void await_resume() noexcept { unreachable(); }
-        };
-
-        auto get_return_object()
-        {
-            return throwing{static_cast<promise_type &>(*this)};
-        }
-
-        auto initial_suspend() noexcept
-        {
-            return suspend_never{};
-        }
-
-        auto final_suspend() noexcept
-        {
-            return suspend_never{};
-        }
-
-        void unhandled_exception()
-        {
-            std::terminate();
-        }
-
-        /**
-         * Throw and destroy calling coroutine.
-         */
-        template <typename Value>
-        auto yield_value(Value && value)
-        {
-            throw_it(std::forward<Value>(value));
-            return suspend_destroy{};
-        }
-
-        /**
-         * Throw an exception.
-         */
-        template <typename Value>
-        void throw_it(Value && value) requires requires
-        {
-            define_exception<remove_cvref_t<Value>>();
-        }
-        {
-            m_return_object->m_condition.exit_with_exception(
-                std::forward<Value>(value));
-        }
-
-        /**
-         * Rethrow from existing.
-         */
-        template <typename ExitCondition>
-        void throw_it(
-            std::tuple<const rethrow_t &, ExitCondition &> error_condition)
-        {
-            m_return_object->m_condition.exit_propagate(
-                std::get<1>(error_condition));
-        }
-
-        /**
-         * Rethrow the current set exception.
-         */
-        void throw_it(rethrow_t)
-        {
-            m_return_object->m_condition.exit_rethrow();
-        }
-
-        /**
-         * Throw an error.
-         */
-        void throw_it(const error & error)
-        {
-            m_return_object->m_condition.exit_with_error(error);
-        }
-
-    protected:
-        ~basic_promise_type() = default;
-
-        throwing * m_return_object{};
-    };
 
     template <typename Base>
     struct throwing_allocator : public Base
