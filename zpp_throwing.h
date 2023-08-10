@@ -16,10 +16,19 @@
 namespace zpp::inline me_tinkers::detail
 {
 
+// XXX: this is not all, what state-less allocator requires...
 template <typename Type>
 concept StatelessAlloc = std::is_void_v<Type> or
     std::same_as<typename std::allocator_traits<Type>::is_always_equal,
                  std::true_type>;
+
+// XXX: This is not all, what allocator requires...
+template <typename Type>
+concept NoexceptAlloc = std::is_void_v<Type> or
+    requires (Type alloc, std::size_t size) {
+    { alloc.allocate(size) } noexcept;
+};
+
 }
 
 namespace zpp::inline me_tinkers
@@ -1075,10 +1084,7 @@ public:
     };
 
     static constexpr bool is_noexcept_allocator =
-        noexcept(std::declval<std::conditional_t<std::is_void_v<Allocator>,
-                                                 std::allocator<std::byte>,
-                                                 Allocator>>()
-                     .allocate(std::size_t{}));
+        detail::NoexceptAlloc<Allocator>;
 
     /**
      * The actual promise type, which adds the appropriate
