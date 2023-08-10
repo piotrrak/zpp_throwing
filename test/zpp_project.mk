@@ -48,8 +48,8 @@ ifeq ($(ZPP_PROJECT_RULES), true)
 endif
 
 ifeq ($(ZPP_TOOLCHAIN_SETTINGS), true)
-ZPP_CC := clang
-ZPP_CXX := clang++
+ZPP_CC ?= clang
+ZPP_CXX ?= clang++
 ZPP_AS := $(ZPP_CC)
 ZPP_LINK := $(ZPP_CXX)
 ZPP_AR := ar
