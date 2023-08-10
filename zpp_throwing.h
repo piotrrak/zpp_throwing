@@ -20,7 +20,7 @@ namespace zpp::inline me_tinkers::detail
 
 }
 
-namespace zpp:: inline me_tinkers
+namespace zpp::inline me_tinkers
 {
 /**
  * User defined error domain.
@@ -399,7 +399,9 @@ auto make_exception_object(auto &&... arguments)
     }
 }
 
-namespace detail
+}
+
+namespace zpp::inline me_tinkers::detail
 {
 union type_info_entry
 {
@@ -604,6 +606,8 @@ using catch_value_type_t = typename catch_value_type<Type>::type;
 
 } // namespace detail
 
+namespace zpp::inline me_tinkers
+{
 /**
  * The exit condition of the coroutine - A value, or error/exception.
  */
