@@ -244,7 +244,7 @@ private:
     /**
      * The error code.
      */
-    integral_type m_code{}
+    integral_type m_code{};
 };
 
 template <typename... Arguments>
