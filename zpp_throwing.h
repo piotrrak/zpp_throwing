@@ -732,6 +732,22 @@ public:
 protected:
     ~basic_promise_type() = default;
 
+    constexpr void exit_with_value(auto && value) requires
+        requires (throwing_type & tt) {
+            tt.m_condition.exit_with_value(
+                 std::forward<decltype(value)>(value));
+        }
+    {
+        m_return_object->m_condition.exit_with_value(
+           std::forward<decltype(value)>(value));
+    }
+
+    constexpr void exit_with_value() requires
+        requires (throwing_type & tt) { tt.m_condition.exit_with_value(); }
+    {
+        m_return_object->m_condition.exit_with_value();
+    }
+
     throwing_type * m_return_object{};
 };
 
@@ -781,6 +797,42 @@ struct noexcept_allocator : public Base
 protected:
     ~noexcept_allocator() = default;
 };
+
+/**
+ * Add the return void functionality to base.
+ */
+template <typename Base>
+struct promise_type_void : public Base
+{
+    using Base::Base;
+
+    void return_void()
+    {
+        Base::exit_with_value();
+    }
+};
+
+/**
+ * Add the return value functionality to base.
+ */
+template <typename Base>
+struct promise_type_nonvoid : public Base
+{
+    using Base::Base;
+
+    template <typename T>
+    void return_value(T && value)
+    {
+        if constexpr (requires {
+                          Base::throw_it(std::forward<T>(value));
+                      }) {
+            Base::throw_it(std::forward<T>(value));
+        } else {
+            Base::exit_with_value(std::forward<T>(value));
+        }
+    }
+};
+
 
 } // namespace detail
 
@@ -1056,37 +1108,13 @@ public:
      * Add the return void functionality to base.
      */
     template <typename Base>
-    struct promise_type_void : public Base
-    {
-        using Base::Base;
-
-        void return_void()
-        {
-            Base::m_return_object->m_condition.exit_with_value();
-        }
-    };
+    using promise_type_void = detail::promise_type_void<Base>;
 
     /**
      * Add the return value functionality to base.
      */
     template <typename Base>
-    struct promise_type_nonvoid : public Base
-    {
-        using Base::Base;
-
-        template <typename T>
-        void return_value(T && value)
-        {
-            if constexpr (requires {
-                              Base::throw_it(std::forward<T>(value));
-                          }) {
-                Base::throw_it(std::forward<T>(value));
-            } else {
-                Base::m_return_object->m_condition.exit_with_value(
-                    std::forward<T>(value));
-            }
-        }
-    };
+    using promise_type_nonvoid = detail::promise_type_nonvoid<Base>;
 
     static constexpr bool is_noexcept_allocator =
         detail::NoexceptAlloc<Allocator>;
