@@ -798,6 +798,21 @@ protected:
     ~noexcept_allocator() = default;
 };
 
+template <typename Allocator, typename Base>
+struct promise_for_alloc_impl : std::conditional<NoexceptAlloc<Allocator>,
+   noexcept_allocator<Base, Allocator>, throwing_allocator<Base, Allocator>>
+{
+};
+
+template <typename Base>
+struct promise_for_alloc_impl<void, Base> : std::type_identity<Base>
+{
+};
+
+template <typename Allocator, typename Base>
+using promise_type_for_allocator_t =
+    promise_for_alloc_impl<Allocator, Base>::type;
+
 /**
  * Add the return void functionality to base.
  */
@@ -1125,22 +1140,10 @@ public:
      */
     using promise_type = std::conditional_t<
         std::is_void_v<Type>,
-        std::conditional_t<
-            std::is_void_v<Allocator>,
-            promise_type_void<basic_promise_type>,
-            std::conditional_t<
-                is_noexcept_allocator,
-                promise_type_void<noexcept_allocator<basic_promise_type>>,
-                promise_type_void<
-                    throwing_allocator<basic_promise_type>>>>,
-        std::conditional_t<
-            std::is_void_v<Allocator>,
-            promise_type_nonvoid<basic_promise_type>,
-            std::conditional_t<is_noexcept_allocator,
-                               promise_type_nonvoid<
-                                   noexcept_allocator<basic_promise_type>>,
-                               promise_type_nonvoid<throwing_allocator<
-                                   basic_promise_type>>>>>;
+	detail::promise_type_for_allocator_t<Allocator,
+            promise_type_void<basic_promise_type>>,
+	detail::promise_type_for_allocator_t<Allocator,
+            promise_type_nonvoid<basic_promise_type>>>;
 
     /**
      * Constructor for out of memory scenario.
