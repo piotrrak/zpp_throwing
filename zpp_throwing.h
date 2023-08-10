@@ -735,6 +735,53 @@ protected:
     throwing_type * m_return_object{};
 };
 
+template <typename Base, StatelessAlloc Allocator>
+struct throwing_allocator : public Base
+{
+    void * operator new(std::size_t size)
+    {
+        Allocator allocator;
+        return std::allocator_traits<Allocator>::allocate(allocator,
+                                                          size);
+    }
+
+    void operator delete(void * pointer, std::size_t size) noexcept
+    {
+        Allocator allocator;
+        std::allocator_traits<Allocator>::deallocate(
+            allocator, static_cast<std::byte *>(pointer), size);
+    }
+
+protected:
+    ~throwing_allocator() = default;
+};
+
+template <typename Base, StatelessAlloc Allocator>
+struct noexcept_allocator : public Base
+{
+    void * operator new(std::size_t size) noexcept
+    {
+        Allocator allocator;
+        return std::allocator_traits<Allocator>::allocate(allocator,
+                                                          size);
+    }
+
+    void operator delete(void * pointer, std::size_t size) noexcept
+    {
+        Allocator allocator;
+        std::allocator_traits<Allocator>::deallocate(
+            allocator, static_cast<std::byte *>(pointer), size);
+    }
+
+    static auto get_return_object_on_allocation_failure()
+    {
+        return Base::throwing_type(nullptr);
+    }
+
+protected:
+    ~noexcept_allocator() = default;
+};
+
 } // namespace detail
 
 namespace zpp::inline me_tinkers
@@ -999,53 +1046,11 @@ public:
     {
     };
 
+    template <typename Base>
+    using noexcept_allocator = detail::noexcept_allocator<Base, Allocator>;
 
     template <typename Base>
-    struct throwing_allocator : public Base
-    {
-        void * operator new(std::size_t size)
-        {
-            Allocator allocator;
-            return std::allocator_traits<Allocator>::allocate(allocator,
-                                                              size);
-        }
-
-        void operator delete(void * pointer, std::size_t size) noexcept
-        {
-            Allocator allocator;
-            std::allocator_traits<Allocator>::deallocate(
-                allocator, static_cast<std::byte *>(pointer), size);
-        }
-
-    protected:
-        ~throwing_allocator() = default;
-    };
-
-    template <typename Base>
-    struct noexcept_allocator : public Base
-    {
-        void * operator new(std::size_t size) noexcept
-        {
-            Allocator allocator;
-            return std::allocator_traits<Allocator>::allocate(allocator,
-                                                              size);
-        }
-
-        void operator delete(void * pointer, std::size_t size) noexcept
-        {
-            Allocator allocator;
-            std::allocator_traits<Allocator>::deallocate(
-                allocator, static_cast<std::byte *>(pointer), size);
-        }
-
-        static auto get_return_object_on_allocation_failure()
-        {
-            return throwing(nullptr);
-        }
-
-    protected:
-        ~noexcept_allocator() = default;
-    };
+    using throwing_allocator = detail::throwing_allocator<Base, Allocator>;
 
     /**
      * Add the return void functionality to base.
