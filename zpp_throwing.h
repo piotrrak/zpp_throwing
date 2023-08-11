@@ -374,14 +374,19 @@ struct exception_object_delete
 {
     void operator()(exception_object * pointer)
     {
-        if constexpr (std::is_void_v<Allocator>) {
-            delete pointer;
-        } else {
-            Allocator allocator;
-            std::allocator_traits<Allocator>::destroy(allocator, pointer);
-            std::allocator_traits<Allocator>::deallocate(
-                allocator, reinterpret_cast<std::byte *>(pointer), 0);
-        }
+        Allocator allocator;
+        std::allocator_traits<Allocator>::destroy(allocator, pointer);
+        std::allocator_traits<Allocator>::deallocate(
+            allocator, reinterpret_cast<std::byte *>(pointer), 0);
+    }
+};
+
+template <>
+struct exception_object_delete<void>
+{
+    void operator()(exception_object * pointer)
+    {
+        delete pointer;
     }
 };
 
