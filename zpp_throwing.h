@@ -442,19 +442,19 @@ union type_info_entry
     void * (*function)(void *);
 };
 
-// BUG? returning address of static object instantiated inside lambda
-// is broken even for c++23
-template <typename Source, typename Destination>
-inline void * erased_static_cast(void * source) noexcept
-{
-    return (void *)static_cast<Destination *>(static_cast<Source *>(source));
-}
-
 template <typename Source, typename Destination> // TODO: requires derived_from
-inline constexpr auto erased_static_cast_v = []() constexpr noexcept {
+inline constexpr auto erased_static_cast_v = []<
+    // Store in template non-type lambda defaulted parameter
+    // the object of type of lambda that does type-erased static_cast
+    auto cast = decltype(
+       [](void * source) noexcept -> void * {
+           return static_cast<Destination *>(static_cast<Source *>(source));
+       }){} 
+    >() constexpr noexcept {
 
-    return &erased_static_cast<Source, Destination>;
-};
+    // Convert the non-caputring lambda to function
+    return static_cast<void*(*)(void*)noexcept>(cast);
+}(); // Invoke lambda directly - so we obtain an address to function doing erasure
 
 template <typename Type>
 constexpr auto type_id() noexcept -> const void *;
@@ -469,7 +469,7 @@ struct type_information
     static constexpr type_info_entry info[] = {
         sizeof...(Bases),    // Number of source classes.
         type_id<Bases>()..., // Source classes type information.
-        erased_static_cast_v<Type, Bases>()..., // Casts from derived to base.
+        erased_static_cast_v<Type, Bases>..., // Casts from derived to base.
     };
 };
 
@@ -649,7 +649,7 @@ struct pointer_if_ref_impl<void> : std::type_identity<std::nullptr_t>
 };
 
 template <typename Type>
-using add_pointer_if_reference_t = pointer_if_ref_impl<Type>::type;
+using add_pointer_if_reference_t = typename pointer_if_ref_impl<Type>::type;
 
 /**
  * The promise type to be extended with return value / return void
