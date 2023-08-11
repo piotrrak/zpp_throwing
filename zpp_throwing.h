@@ -871,6 +871,10 @@ struct promise_type_nonvoid : public Base
 
 namespace zpp::inline me_tinkers
 {
+
+template <typename Type>
+concept NonVoidType = not std::is_void_v<Type>;
+
 /**
  * The exit condition of the coroutine - A value, or error/exception.
  */
@@ -901,7 +905,7 @@ struct exit_condition
     constexpr exit_condition(exit_condition && other) noexcept
     {
         if (other.is_value()) {
-            if constexpr (!std::is_void_v<Type>) {
+            if constexpr (NonVoidType<Type>) {
                 if constexpr (!std::is_reference_v<Type>) {
                     ::new (std::addressof(m_return_value))
                         Type(std::move(other.m_return_value));
@@ -915,10 +919,16 @@ struct exit_condition
         }
     }
 
-    constexpr ~exit_condition()
+    // FIXME:
+    // Note to myself:
+    // This destructor makes the exit_condition non-trivialy destructible
+    // even though the `Type` might be.
+    // This needs the QoI fix for other special members
+    constexpr ~exit_condition() noexcept requires std::is_trivially_destructible_v<Type> = default;
+
+    constexpr ~exit_condition() noexcept(std::destructible<Type>)
     {
-        if constexpr (!std::is_void_v<Type> &&
-                      !std::is_trivially_destructible_v<Type>) {
+        if constexpr (NonVoidType<Type>) {
             if (is_value()) {
                 m_return_value.~Type();
             }
@@ -1106,6 +1116,17 @@ struct exit_condition
     };
 };
 
+template <typename Type, typename Promise>
+concept ThrowableThrough = requires (Promise &promise, Type && value) {
+   { promise.throw_it(std::forward<Type>(value)) };
+};
+
+template <typename Type, typename... Args>
+concept Throwing = requires {
+    typename std::invoke_result_t<Type, Args...>::zpp_throwing_tag;
+};
+
+
 /**
  * Use as the return type of the function, throw exceptions
  * by using `co_yield` / `co_return`. Using `co_yield` is clearer
@@ -1176,36 +1197,24 @@ public:
     /**
      * Construct directly from a value.
      */
-    constexpr throwing(auto && value) requires(
-        std::is_convertible_v<decltype(value), Type> &&
-        !requires(promise_type & promise) {
-            promise.throw_it(std::forward<decltype(value)>(value));
-        })
+    constexpr throwing(std::convertible_to<Type> auto && value)
+        requires (not ThrowableThrough<decltype(value), promise_type>)
 #if 0
         or
         (std::is_void_v<Type> &&
          std::is_same_v<
              remove_cvref_t<decltype(value)>,
-             void_t>) :
+             void_t>)
 #endif
        : m_condition(std::forward<decltype(value)>(value))
     {
     }
 
-    template <typename T=Type>
-    constexpr throwing() requires std::is_void_v<T>
-       : m_condition{}
-    {
-    }
-
-
     /**
      * Construct directly from an error/exception.
      */
-    constexpr throwing(auto && value) requires requires(promise_type & promise)
-    {
-        promise.throw_it(std::forward<decltype(value)>(value));
-    }
+    constexpr throwing(ThrowableThrough<promise_type> auto && value)
+    /* FIXME: noexcept(?) */
     {
         if constexpr (requires {
                           define_exception<remove_cvref_t<decltype(value)>>();
@@ -1321,27 +1330,18 @@ private:
      */
     template <typename Clause,
               typename... Clauses,
-              typename...,
+              typename..., // XXX: Huh?? - TODO: figure out what happens here
               typename CatchType = detail::catch_value_type_t<Clause>,
-              bool IsThrowing = requires
-    {
-        typename std::invoke_result_t<Clause>::zpp_throwing_tag;
-    }
-    || requires
-    {
-        typename std::invoke_result_t<
-            Clause,
-            std::conditional_t<std::is_void_v<CatchType>,
-                               int,
-                               CatchType> &>::zpp_throwing_tag;
-    }
+              typename NonVoidCatchType =
+                  std::conditional_t<std::is_void_v<CatchType>, int, CatchType>&,
+              bool IsThrowing =
+                  (Throwing<Clause> or Throwing<Clause, NonVoidCatchType>)
     >
     requires IsThrowing ||
         (... ||
          (
-             requires {
-                 typename std::invoke_result_t<Clauses>::zpp_throwing_tag;
-             } ||
+             Throwing<Clauses> or
+
              requires {
                  typename std::invoke_result_t<
                      Clauses,
@@ -1352,10 +1352,9 @@ private:
                          detail::catch_value_type_t<Clauses>> &>::
                      zpp_throwing_tag;
              })) ||
-        (!requires {
+        (!requires (std::tuple<Clause, Clauses...> && clauses) {
             typename std::invoke_result_t<
-                decltype(std::get<sizeof...(Clauses)>(
-                    std::declval<std::tuple<Clause, Clauses...>>()))>;
+                decltype(std::get<sizeof...(Clauses)>(clauses))>;
         }) constexpr throwing
         catch_exception_object(const dynamic_object & exception,
                                Clause && clause,
