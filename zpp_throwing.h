@@ -1164,9 +1164,6 @@ public:
     template <typename Base>
     using promise_type_nonvoid = detail::promise_type_nonvoid<Base>;
 
-    static constexpr bool is_noexcept_allocator =
-        detail::NoexceptAlloc<Allocator>;
-
     /**
      * The actual promise type, which adds the appropriate
      * return strategy to the basic promise type.
