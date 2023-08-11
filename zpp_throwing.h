@@ -422,6 +422,9 @@ auto make_exception_object(auto &&... arguments)
 
 namespace zpp::inline me_tinkers::detail
 {
+
+using erased_static_cast_t = void * (*) (void * ) noexcept;
+
 union type_info_entry
 {
     constexpr type_info_entry(std::size_t number) : number(number)
@@ -432,14 +435,14 @@ union type_info_entry
     {
     }
 
-    constexpr type_info_entry(void * (*function)(void *) noexcept) :
+    constexpr type_info_entry(erased_static_cast_t function) :
         function(function)
     {
     }
 
     std::size_t number;
     const void * pointer;
-    void * (*function)(void *);
+    erased_static_cast_t function;
 };
 
 template <typename Source, typename Destination> // TODO: requires derived_from<D, S>
@@ -450,11 +453,11 @@ inline constexpr auto erased_static_cast_v = []<
        [](void * source) noexcept -> void * {
            return static_cast<Destination *>(static_cast<Source *>(source));
        }){} 
-    >() constexpr noexcept {
+    >() constexpr noexcept -> erased_static_cast_t {
 
     // Convert the non-caputring lambda to function
     return static_cast<void*(*)(void*)noexcept>(cast);
-}(); // Invoke lambda directly - so we obtain an address to function doing erasure
+}(); // Invoke lambda directly - so we obtain an address to function
 
 template <typename Type>
 constexpr auto type_id() noexcept -> const void *;
@@ -512,7 +515,7 @@ inline void * dyn_cast(const void * base,
 
     // Fetch the type info entries.
     auto type_info_entries =
-        reinterpret_cast<const type_info_entry *>(most_derived);
+        static_cast<const type_info_entry *>(most_derived);
 
     // The number of base types.
     auto number_of_base_types = type_info_entries->number;
@@ -649,7 +652,7 @@ struct pointer_if_ref_impl<void> : std::type_identity<std::nullptr_t>
 };
 
 template <typename Type>
-using add_pointer_if_reference_t = typename pointer_if_ref_impl<Type>::type;
+using add_pointer_if_reference_t = pointer_if_ref_impl<Type>::type;
 
 /**
  * The promise type to be extended with return value / return void
@@ -766,13 +769,12 @@ protected:
 };
 
 template <typename Base, StatelessAlloc Allocator>
-struct throwing_allocator : public Base
+struct promise_allocator_mixin : public Base
 {
-    void * operator new(std::size_t size)
+    void * operator new(std::size_t size) noexcept(NoexceptAlloc<Allocator>)
     {
         Allocator allocator;
-        return std::allocator_traits<Allocator>::allocate(allocator,
-                                                          size);
+        return std::allocator_traits<Allocator>::allocate(allocator, size);
     }
 
     void operator delete(void * pointer, std::size_t size) noexcept
@@ -782,8 +784,15 @@ struct throwing_allocator : public Base
             allocator, static_cast<std::byte *>(pointer), size);
     }
 
+    template <typename A=Allocator>
+    [[nodiscard]] static auto get_return_object_on_allocation_failure()
+        requires (not NoexceptAlloc<A>)
+    {
+        return Base::throwing_type(nullptr);
+    }
+
 protected:
-    ~throwing_allocator() = default;
+    ~promise_allocator_mixin() = default;
 };
 
 template <typename Base, StatelessAlloc Allocator>
@@ -803,18 +812,13 @@ struct noexcept_allocator : public Base
             allocator, static_cast<std::byte *>(pointer), size);
     }
 
-    static auto get_return_object_on_allocation_failure()
-    {
-        return Base::throwing_type(nullptr);
-    }
-
 protected:
     ~noexcept_allocator() = default;
 };
 
 template <typename Allocator, typename Base>
-struct promise_for_alloc_impl : std::conditional<NoexceptAlloc<Allocator>,
-   noexcept_allocator<Base, Allocator>, throwing_allocator<Base, Allocator>>
+struct promise_for_alloc_impl :
+    std::type_identity<promise_allocator_mixin<Base, Allocator>>
 {
 };
 
@@ -1127,12 +1131,6 @@ public:
     {
     };
 
-    template <typename Base>
-    using noexcept_allocator = detail::noexcept_allocator<Base, Allocator>;
-
-    template <typename Base>
-    using throwing_allocator = detail::throwing_allocator<Base, Allocator>;
-
     /**
      * Add the return void functionality to base.
      */
@@ -1182,14 +1180,24 @@ public:
         std::is_convertible_v<decltype(value), Type> &&
         !requires(promise_type & promise) {
             promise.throw_it(std::forward<decltype(value)>(value));
-        }) ||
+        })
+#if 0
+        or
         (std::is_void_v<Type> &&
          std::is_same_v<
              remove_cvref_t<decltype(value)>,
              void_t>) :
-        m_condition(std::forward<decltype(value)>(value))
+#endif
+       : m_condition(std::forward<decltype(value)>(value))
     {
     }
+
+    template <typename T=Type>
+    constexpr throwing() requires std::is_void_v<T>
+       : m_condition{}
+    {
+    }
+
 
     /**
      * Construct directly from an error/exception.
@@ -1662,19 +1670,22 @@ private :
  * handle being implicitly destroyed within the function.
  */
 template <typename Clause>
-constexpr auto try_catch(Clause && clause)
+constexpr auto try_catch(Clause && clause) requires (not std::is_void_v<Clause>)
 {
-    if constexpr (requires {
+    static_assert(requires {
                       typename std::invoke_result_t<
                           Clause>::zpp_throwing_tag;
-                  }) {
-        return std::forward<Clause>(clause)();
-    } else {
-        static_assert(std::is_void_v<Clause>,
-                      "try_catch clause must be a coroutine.");
-    }
+                  });
+    return std::forward<Clause>(clause)();
 }
 
+// XXX: Why??
+template <typename Clause>
+constexpr void try_catch(Clause) requires std::is_void_v<Clause>
+{
+}
+
+#if 0
 template <typename TryClause, typename... CatchClause>
 constexpr decltype(auto) try_catch(
     TryClause && try_clause,
@@ -1691,6 +1702,44 @@ constexpr decltype(auto) try_catch(
                       "Try clause must return throwing<Type>.");
     }
 }
+#endif
+
+template <typename TryClause, typename... CatchClause>
+constexpr decltype(auto) try_catch(
+    TryClause && try_clause,
+    CatchClause &&... catch_clause) requires(sizeof...(CatchClause) != 0 and
+        not std::is_void_v<TryClause>)
+{
+    if constexpr (requires {
+                      typename std::invoke_result_t<
+                          TryClause>::zpp_throwing_tag;
+                  }) {
+        return std::forward<TryClause>(try_clause)().catches(
+            std::forward<CatchClause>(catch_clause)...);
+    } else {
+        static_assert(std::is_void_v<TryClause>,
+                      "Try clause must return throwing<Type>.");
+    }
+}
+
+template <typename TryClause, typename... CatchClause>
+constexpr decltype(auto) try_catch(
+    TryClause try_clause,
+    CatchClause &&... catch_clause) requires(sizeof...(CatchClause) != 0 and
+        std::is_void_v<TryClause>)
+{
+    if constexpr (requires {
+                      typename std::invoke_result_t<
+                          TryClause>::zpp_throwing_tag;
+                  }) {
+        return std::forward<TryClause>(try_clause)().catches(
+            std::forward<CatchClause>(catch_clause)...);
+    } else {
+        static_assert(std::is_void_v<TryClause>,
+                      "Try clause must return throwing<Type>.");
+    }
+}
+
 
 template <>
 struct define_exception<std::exception>
