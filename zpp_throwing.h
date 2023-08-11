@@ -442,7 +442,7 @@ union type_info_entry
     void * (*function)(void *);
 };
 
-template <typename Source, typename Destination> // TODO: requires derived_from
+template <typename Source, typename Destination> // TODO: requires derived_from<D, S>
 inline constexpr auto erased_static_cast_v = []<
     // Store in template non-type lambda defaulted parameter
     // the object of type of lambda that does type-erased static_cast
