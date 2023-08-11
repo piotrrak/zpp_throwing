@@ -442,9 +442,18 @@ union type_info_entry
     void * (*function)(void *);
 };
 
+// BUG? returning address of static object instantiated inside lambda
+// is broken even for c++23
 template <typename Source, typename Destination>
-constexpr auto erased_static_cast_v = [](void * source) noexcept -> void * {
-    return static_cast<Destination *>(static_cast<Source *>(source));
+inline void * erased_static_cast(void * source) noexcept
+{
+    return (void *)static_cast<Destination *>(static_cast<Source *>(source));
+}
+
+template <typename Source, typename Destination> // TODO: requires derived_from
+inline constexpr auto erased_static_cast_v = []() constexpr noexcept {
+
+    return &erased_static_cast<Source, Destination>;
 };
 
 template <typename Type>
@@ -460,7 +469,7 @@ struct type_information
     static constexpr type_info_entry info[] = {
         sizeof...(Bases),    // Number of source classes.
         type_id<Bases>()..., // Source classes type information.
-        &erased_static_cast_v<Type, Bases>..., // Casts from derived to base.
+        erased_static_cast_v<Type, Bases>()..., // Casts from derived to base.
     };
 };
 
