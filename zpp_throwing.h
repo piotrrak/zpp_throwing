@@ -487,6 +487,8 @@ struct type_information
 template <typename Type>
 struct type_information<Type>
 {
+    // TODO: maybe retroit inline_array like thingy for that
+    //
     // Construct the type information.
     static constexpr type_info_entry info[] = {
         std::size_t{}, // Number of source classes.
@@ -1429,6 +1431,7 @@ private:
                     return std::move(*this);
                 }
             } else {
+                // TODO: looks like invocable_r<void, ...>
                 if constexpr (std::is_void_v<decltype(std::forward<Clause>(
                                   clause)(CatchType{
                                   m_condition.error().code()}))>) {
@@ -1501,6 +1504,7 @@ private:
                                           Clause && clause,
                                           Clauses &&... clauses)
     {
+        // MAYBE TODO: split it outling case by case?
         if constexpr (std::is_void_v<CatchType>) {
             static_assert(!sizeof...(Clauses),
                           "Catch all object with no parameters must "
@@ -1510,6 +1514,7 @@ private:
                     std::addressof(m_condition.exception()));
             }
             return std::forward<Clause>(clause)();
+        // TODO: invocable/regular_invocable?
         } else if constexpr (requires {
                                  std::forward<Clause>(clause)(
                                      m_condition.error());
@@ -1583,6 +1588,7 @@ public:
     template <typename... Clauses>
     constexpr inline throwing
     catches(Clauses &&... clauses) requires requires
+    // TODO: use Throwing<>
     {
         typename decltype(this->catch_exception_object(
             exception_object::null_dynamic_object,
@@ -1617,6 +1623,7 @@ public:
     template <typename... Clauses>
     constexpr inline Type
     catches(Clauses &&... clauses) requires(!requires {
+        // TODO: not Throwing<>
         typename decltype(this->catch_exception_object(
             exception_object::null_dynamic_object,
             std::forward<Clauses>(clauses)...))::zpp_throwing_tag;
