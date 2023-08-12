@@ -795,27 +795,6 @@ protected:
     ~promise_allocator_mixin() = default;
 };
 
-template <typename Base, StatelessAlloc Allocator>
-struct noexcept_allocator : public Base
-{
-    void * operator new(std::size_t size) noexcept
-    {
-        Allocator allocator;
-        return std::allocator_traits<Allocator>::allocate(allocator,
-                                                          size);
-    }
-
-    void operator delete(void * pointer, std::size_t size) noexcept
-    {
-        Allocator allocator;
-        std::allocator_traits<Allocator>::deallocate(
-            allocator, static_cast<std::byte *>(pointer), size);
-    }
-
-protected:
-    ~noexcept_allocator() = default;
-};
-
 template <typename Allocator, typename Base>
 struct promise_for_alloc_impl :
     std::type_identity<promise_allocator_mixin<Base, Allocator>>
