@@ -369,6 +369,14 @@ struct define_exception;
 template <typename Type>
 using define_exception_t = typename define_exception<Type>::type;
 
+template <typename Type>
+concept DefinedException = requires {
+    typename ::zpp::define_exception<Type>::type;
+    // XXX: some cases check it ATM
+    // TODO: Figure out if it is really required
+    { ::zpp::define_exception<Type>() };
+};
+
 template <typename Allocator>
 struct exception_object_delete
 {
@@ -710,10 +718,8 @@ public:
      * Throw an exception.
      */
     template <typename Value>
-    void throw_it(Value && value) requires requires
-    {
-        define_exception<remove_cvref_t<Value>>();
-    }
+    void throw_it(Value && value)
+        requires DefinedException<remove_cvref_t<Value>>
     {
         m_return_object->m_condition.exit_with_exception(
             std::forward<Value>(value));
@@ -1106,14 +1112,6 @@ concept Throwing = requires {
     typename std::invoke_result_t<Type, Args...>::zpp_throwing_tag;
 };
 
-template <typename Type>
-concept DefinedException = requires {
-    typename ::zpp::define_exception<Type>::type;
-    // XXX: some cases check it ATM
-    // TODO: Figure out if it is really required
-    { ::zpp::define_exception<Type>() };
-};
-
 
 /**
  * Use as the return type of the function, throw exceptions
@@ -1442,7 +1440,7 @@ private:
                         CatchType{m_condition.error().code()});
                 }
             }
-        } else if constexpr (requires { define_exception<CatchType>(); }) {
+        } else if constexpr (DefinedException<CatchType>) {
             CatchType * catch_object = nullptr;
             if (exception.address) {
                 catch_object = static_cast<CatchType *>(
@@ -1538,7 +1536,7 @@ private:
 
             return std::forward<Clause>(clause)(
                 CatchType{m_condition.error().code()});
-        } else if constexpr (requires { define_exception<CatchType>(); }) {
+        } else if constexpr (DefinedException<CatchType>) {
             CatchType * catch_object = nullptr;
             if (exception.address) {
                 catch_object = static_cast<CatchType *>(
