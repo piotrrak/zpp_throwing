@@ -1100,6 +1100,7 @@ concept ThrowableThrough = requires (Promise &promise, Type && value) {
    { promise.throw_it(std::forward<Type>(value)) };
 };
 
+// FIXME: Needs better name
 template <typename Type, typename... Args>
 concept Throwing = requires {
     typename std::invoke_result_t<Type, Args...>::zpp_throwing_tag;
@@ -1688,14 +1689,11 @@ constexpr decltype(auto) try_catch(
 
 template <typename TryClause, typename... CatchClause>
 constexpr decltype(auto) try_catch(
-    TryClause && try_clause,
+    TryClause && try_clause, // FIXME: void type will be rejected here
     CatchClause &&... catch_clause) requires(sizeof...(CatchClause) != 0 and
         not std::is_void_v<TryClause>)
 {
-    if constexpr (requires {
-                      typename std::invoke_result_t<
-                          TryClause>::zpp_throwing_tag;
-                  }) {
+    if constexpr (Throwing<TryClause>) {
         return std::forward<TryClause>(try_clause)().catches(
             std::forward<CatchClause>(catch_clause)...);
     } else {
@@ -1708,12 +1706,10 @@ template <typename TryClause, typename... CatchClause>
 constexpr decltype(auto) try_catch(
     TryClause try_clause,
     CatchClause &&... catch_clause) requires(sizeof...(CatchClause) != 0 and
-        std::is_void_v<TryClause>)
+        std::is_void_v<TryClause>) // FIXME: not quite right?
 {
-    if constexpr (requires {
-                      typename std::invoke_result_t<
-                          TryClause>::zpp_throwing_tag;
-                  }) {
+    // XXX: TODO HERE be dragons:
+    if constexpr (Throwing<TryClause>) {
         return std::forward<TryClause>(try_clause)().catches(
             std::forward<CatchClause>(catch_clause)...);
     } else {
