@@ -1693,6 +1693,7 @@ constexpr decltype(auto) try_catch(
     CatchClause &&... catch_clause) requires(sizeof...(CatchClause) != 0 and
         not std::is_void_v<TryClause>)
 {
+    // XXX: TODO HERE be dragons:
     if constexpr (Throwing<TryClause>) {
         return std::forward<TryClause>(try_clause)().catches(
             std::forward<CatchClause>(catch_clause)...);
