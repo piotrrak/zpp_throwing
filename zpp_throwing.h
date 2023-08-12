@@ -1106,6 +1106,14 @@ concept Throwing = requires {
     typename std::invoke_result_t<Type, Args...>::zpp_throwing_tag;
 };
 
+template <typename Type>
+concept DefinedException = requires {
+    typename ::zpp::define_exception<Type>::type;
+    // XXX: some cases check it ATM
+    // TODO: Figure out if it is really required
+    { ::zpp::define_exception<Type>() };
+};
+
 
 /**
  * Use as the return type of the function, throw exceptions
@@ -1193,9 +1201,7 @@ public:
     constexpr throwing(ThrowableThrough<promise_type> auto && value)
     /* FIXME: noexcept(?) */
     {
-        if constexpr (requires {
-                          define_exception<remove_cvref_t<decltype(value)>>();
-                      }) {
+        if constexpr (DefinedException<remove_cvref_t<decltype(value)>>) {
             m_condition.exit_with_exception(
                 std::forward<decltype(value)>(value));
         } else {
