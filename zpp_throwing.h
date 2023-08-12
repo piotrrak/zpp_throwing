@@ -1316,6 +1316,22 @@ public:
     }
 
 private:
+
+    template <typename Clause>
+    struct clause_catch_nonvoid_value_impl :
+        std::conditional<std::is_void_v<Clause>,
+                         int,
+                         detail::catch_value_type_t<Clause>>
+    {
+    };
+
+    template <typename Clause>
+    using clause_catch_value_t = clause_catch_nonvoid_value_impl<Clause>::type;
+
+    template <typename Clause>
+    using clause_nonvoid_catch_ref_t =
+        std::add_lvalue_reference_t<clause_catch_value_t<Clause>>;
+
     /**
      * Allows to catch exceptions. Each parameter is a catch clause
      * that receives one parameter of the exception to be caught. A
@@ -1329,8 +1345,7 @@ private:
               typename... Clauses,
               typename..., // XXX: Huh?? - TODO: figure out what happens here
               typename CatchType = detail::catch_value_type_t<Clause>,
-              typename NonVoidCatchType =
-                  std::conditional_t<std::is_void_v<CatchType>, int, CatchType>&,
+              typename NonVoidCatchType = clause_nonvoid_catch_ref_t<Clause>,
               bool IsThrowing =
                   (Throwing<Clause> or Throwing<Clause, NonVoidCatchType>)
     >
@@ -1338,17 +1353,9 @@ private:
         (... ||
          (
              Throwing<Clauses> or
-
-             requires {
-                 typename std::invoke_result_t<
-                     Clauses,
-                     std::conditional_t<
-                         std::is_void_v<
-                             detail::catch_value_type_t<Clauses>>,
-                         int,
-                         detail::catch_value_type_t<Clauses>> &>::
-                     zpp_throwing_tag;
-             })) ||
+             Throwing<Clauses, clause_nonvoid_catch_ref_t<Clauses>>
+        )) ||
+        // TODO: figure out why last Clause should not be invocable
         (!requires (std::tuple<Clause, Clauses...> && clauses) {
             typename std::invoke_result_t<
                 decltype(std::get<sizeof...(Clauses)>(clauses))>;
